@@ -1,0 +1,10 @@
+## Interface: 16001
+## Title: Gamepad Defaults Key Modifier
+## Notes: Gives the controller's Y button something to do when you have no target: the quest log and map, or your bags. Settings in Options > AddOns > Gamepad Defaults Key Modifier, or /gdkm.
+## Author: Artisan
+## Version: @project-version@
+## SavedVariables: GamepadDefaultsKeyModifierDB
+## Category: Gamepad
+
+GamepadDefaultsKeyModifier.lua
+FaceTopButton.lua
