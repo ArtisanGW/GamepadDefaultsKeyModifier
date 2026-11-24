@@ -10,7 +10,7 @@ then:
 
 With a target, Y still opens its menu. The button stays the game's own: the
 addon only adds to it after the game's click, with no key bindings of its own.
-Settings in **Options > AddOns > Gamepad Defaults Key Modifier**, or `/gdkm`.
+Settings in **Options > AddOns > Gamepad Defaults Key Modifier**, or `/gpdk`.
 
 ## License
 

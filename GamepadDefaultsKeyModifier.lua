@@ -1,9 +1,9 @@
 -- GamepadDefaultsKeyModifier: gives the controller's top face button (Y on Xbox)
 -- something to do when you have no target. Settings sit in the game's
--- Options > AddOns > Gamepad Defaults Key Modifier, or /gdkm.
+-- Options > AddOns > Gamepad Defaults Key Modifier, or /gpdk.
 --
 -- Files, one job each:
---   GamepadDefaultsKeyModifier.lua   saved settings, the settings page, events, /gdkm
+--   GamepadDefaultsKeyModifier.lua   saved settings, the settings page, events, /gpdk
 --   FaceTopButton.lua                adds the chosen action to the game's own Y button
 local ADDON_NAME = ...
 
@@ -89,8 +89,8 @@ eventFrame:SetScript("OnEvent", function(_, event, name)
     end
 end)
 
--- /gdkm (or /gamepaddefaultskeymodifier) opens the settings.
-SLASH_GAMEPADDEFAULTSKEYMODIFIER1 = "/gdkm"
+-- /gpdk (or /gamepaddefaultskeymodifier) opens the settings.
+SLASH_GAMEPADDEFAULTSKEYMODIFIER1 = "/gpdk"
 SLASH_GAMEPADDEFAULTSKEYMODIFIER2 = "/gamepaddefaultskeymodifier"
 SlashCmdList.GAMEPADDEFAULTSKEYMODIFIER = function()
     Modifier.Open()
