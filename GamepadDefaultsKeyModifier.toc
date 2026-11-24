@@ -1,0 +1,9 @@
+## Interface: 16001
+## Title: Gamepad Defaults Key Modifier
+## Notes: Open the world map or bags with the controller's top face button when you have no target.
+## Author: Artisan
+## Version: @project-version@
+## SavedVariables: GamepadDefaultsKeyModifierDB
+## Category: Gamepad
+
+GamepadDefaultsKeyModifier.lua
