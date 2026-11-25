@@ -1,0 +1,11 @@
+# What the BigWigs packager puts in the release zip.
+# Files starting with a dot (.pkgmeta) are left out on their own.
+package-as: GamepadDefaultsKeyModifier
+
+# Comments only on their own line: the packager reads anything after an item as part of it.
+ignore:
+  - tests
+  # the icon's source and its CurseForge size; the game uses Media/icon-64.png
+  - Media/icon.svg
+  - Media/icon-400.png
+

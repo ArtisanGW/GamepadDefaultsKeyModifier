@@ -1,73 +1,123 @@
 -- The controller's top face button (Y on Xbox) with no target.
 --
 -- On the controller UI, Y is the game's own "inspect" button on its main action
--- bar (forever branch: Blizzard_GamepadActionBars/MainActionBarFrame.lua:562-577,
--- topBar.Right.ActionButton2, mapped to GAMEPAD_FACE_TOP in ActionBarTemplates.xml:262-269).
+-- bar (forever branch: Blizzard_GamepadActionBars/MainActionBarFrame.lua:562-577).
 -- With a target, its release opens the target's menu; with none, it does nothing.
 --
--- This file adds to it, after the game's own click (HookScript): on release, with
--- no target and the targeting modifier not held (it puts raid markers on Y), it
--- does what the settings say: the quest log and map, or the bags. The button, its
--- binding and its target menu stay the game's.
+-- With no target, on the HUD (no window open), this binds Y to one of the game's
+-- own key bindings instead: TOGGLEQUESTLOG or OPENALLBAGS (Bindings_Standard.xml).
+-- The game's binding code then opens the window, so it opens as the game's own.
+-- Opening it from addon code (a hook after the game's click) tainted the window,
+-- and closing it then failed with "Interface action failed" (2026-11-24).
 --
--- The game sets the button's click in PostVariableSetUp (MainActionBarFrame.lua:669)
--- with SetScript, which would drop a hook made before: so the hook goes on after it.
+-- The binding sits on a secure frame of its own and is set by secure code:
+-- • a state driver clears it as soon as you have a target, in combat too, so Y
+--   opens the target's menu again
+-- • the game re-sets its own controller keys when a window opens or closes
+--   (InputBindingManager.lua: AddBindingSet, RemoveSet, ClearBindings); a
+--   post-hook on each sets the binding again after it, so it's the newest on Y,
+--   or clears it while a window is open, so Y stays the game's there
+-- Never a listener in the game's own list (BindToCoreBindingActive): the game
+-- calls those while it opens a window, and addon code there tainted it (an
+-- error on pressing Y with the window open, 2026-11-24).
 local Modifier = _G.GamepadDefaultsKeyModifier
 
-local FaceTopButton = {}
+local FaceTopButton = {
+    Y_KEY = GAMEPAD_FACE_TOP or "PAD4",
+    -- The game's key binding for each setting (Modifier.ACTIONS ids); Off binds nothing.
+    BINDING_FOR_ACTION = { [1] = "TOGGLEQUESTLOG", [2] = "OPENALLBAGS" },
+}
 Modifier.FaceTopButton = FaceTopButton
 
-local hookedButton
+local bindingFrame                  -- the secure frame that holds the Y binding
+local attributesAfterCombat = {}    -- attribute name -> value, set once combat ends
 
--- What each setting does with no target (Modifier.ACTIONS ids).
-local RUN = {
-    [1] = function() if type(ToggleQuestLog) == "function" then ToggleQuestLog() end end,
-    [2] = function() if type(ToggleAllBags) == "function" then ToggleAllBags() end end,
-}
+-- Runs in the game's secure environment each time an attribute of bindingFrame
+-- changes; the game passes the changed attribute's name as `name`.
+local UPDATE_BINDING_SNIPPET = [[
+    local watched = name == "state-target" or name == "hud-shown" or name == "binding-command" or name == "rebind-count"
+    if not watched then return end
+    self:ClearBindings()
+    local bindingCommand = self:GetAttribute("binding-command")
+    local noTarget = self:GetAttribute("state-target") == "none"
+    if bindingCommand ~= "" and noTarget and self:GetAttribute("hud-shown") then
+        self:SetBinding(true, self:GetAttribute("binding-key"), bindingCommand)
+    end
+]]
 
-local function targetingModifierDown()
-    local gamepadMode = _G.GamepadMode
-    return type(gamepadMode) == "table" and type(gamepadMode.IsTargetingModifierDown) == "function"
-        and gamepadMode.IsTargetingModifierDown() == true
+local function bindingForChosenAction()
+    return FaceTopButton.BINDING_FOR_ACTION[Modifier.GetSettings().action] or ""
 end
 
--- After the game's own click.
-local function afterClick(_, _, down)
-    if down then return end   -- the game acts on release too
-    if UnitExists("target") or targetingModifierDown() then return end
-    local run = RUN[Modifier.GetSettings().action]
-    if run then run() end
+-- Out of combat at once; in combat, once it ends (addon code can't change a
+-- secure frame's attributes in combat).
+local function setAttributeWhenAllowed(name, value)
+    if InCombatLockdown() then
+        attributesAfterCombat[name] = value
+        return
+    end
+    bindingFrame:SetAttribute(name, value)
 end
 
--- The game's Y button, once it's set up.
-function FaceTopButton.Find()
-    local bar = _G.GamepadMainActionBarFrame
-    local button = type(bar) == "table" and bar.PageUnit and bar.PageUnit.actionBars
-        and bar.PageUnit.actionBars.topBar and bar.PageUnit.actionBars.topBar.Right
-        and bar.PageUnit.actionBars.topBar.Right.ActionButton2
-    if type(button) ~= "table" or type(button.HookScript) ~= "function" then return nil end
-    if button.IsForbidden and button:IsForbidden() then return nil end
-    if not button:GetScript("OnClick") then return nil end   -- the game hasn't set it up yet
-    return button
-end
-
--- Hooks the game's Y button once; true when it's hooked.
-function FaceTopButton.Hook()
-    local button = FaceTopButton.Find()
-    if not button then return false end
-    if hookedButton == button then return true end
-    button:HookScript("OnClick", afterClick)
-    hookedButton = button
-    return true
-end
-
--- Now if the game's bar is set up, else right after it is.
-function FaceTopButton.Start()
-    if FaceTopButton.Hook() then return end
-    local bar = _G.GamepadMainActionBarFrame
-    if type(bar) == "table" and type(bar.PostVariableSetUp) == "function" then
-        hooksecurefunc(bar, "PostVariableSetUp", FaceTopButton.Hook)
+function FaceTopButton.ApplyAttributesAfterCombat()
+    for name, value in pairs(attributesAfterCombat) do
+        attributesAfterCombat[name] = nil
+        local succeeded, errorMessage = pcall(bindingFrame.SetAttribute, bindingFrame, name, value)
+        if not succeeded then geterrorhandler()(errorMessage) end
     end
 end
 
-function FaceTopButton.IsHooked() return hookedButton ~= nil end
+-- The setting changed: the next press does the new thing, no reload.
+function FaceTopButton.ApplyChosenAction()
+    if not bindingFrame then return end
+    setAttributeWhenAllowed("binding-command", bindingForChosenAction())
+end
+
+-- The game's stack of controller keys, or nil without the controller UI's code.
+function FaceTopButton.GameBindingManager()
+    local bindingManager = _G.GamepadSharedUtility and GamepadSharedUtility.InputBindingManager
+    if type(bindingManager) ~= "table" or type(bindingManager.IsOnlyCoreBindingSetActive) ~= "function" then
+        return nil
+    end
+    return bindingManager
+end
+
+-- True when only the game's HUD keys are on (no window open). Without the
+-- game's binding manager, the HUD is taken as shown.
+function FaceTopButton.HudShown()
+    local bindingManager = FaceTopButton.GameBindingManager()
+    return bindingManager == nil or bindingManager:IsOnlyCoreBindingSetActive() == true
+end
+
+-- After the game changed its keys: on the HUD, the Y binding is set again after them.
+local function afterGameKeysChanged()
+    local shown = FaceTopButton.HudShown()
+    setAttributeWhenAllowed("hud-shown", shown)
+    if shown then
+        setAttributeWhenAllowed("rebind-count", (bindingFrame:GetAttribute("rebind-count") or 0) + 1)
+    end
+end
+
+-- The game's methods that change its controller keys (InputBindingManager.lua).
+FaceTopButton.GAME_KEY_METHODS = { "AddBindingSet", "RemoveSet", "ClearBindings" }
+
+local function hookGameKeyChanges()
+    local bindingManager = FaceTopButton.GameBindingManager()
+    if not bindingManager then return end
+    for _, methodName in ipairs(FaceTopButton.GAME_KEY_METHODS) do
+        if type(bindingManager[methodName]) == "function" then
+            hooksecurefunc(bindingManager, methodName, afterGameKeysChanged)
+        end
+    end
+end
+
+function FaceTopButton.Start()
+    if bindingFrame then return end
+    bindingFrame = CreateFrame("Frame", "GamepadDefaultsKeyModifierYBinding", UIParent, "SecureHandlerAttributeTemplate")
+    bindingFrame:SetAttribute("binding-key", FaceTopButton.Y_KEY)
+    bindingFrame:SetAttribute("hud-shown", FaceTopButton.HudShown())
+    bindingFrame:SetAttribute("binding-command", bindingForChosenAction())
+    bindingFrame:SetAttribute("_onattributechanged", UPDATE_BINDING_SNIPPET)
+    RegisterStateDriver(bindingFrame, "target", "[@target,exists] target; none")
+    hookGameKeyChanges()
+end

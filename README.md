@@ -8,8 +8,10 @@ then:
 - **Quests & Map** opens or closes the quest log and map.
 - **Bags** opens or closes your bags.
 
-With a target, Y still opens its menu. The button stays the game's own: the
-addon only adds to it after the game's click, with no key bindings of its own.
+With a target, or with a window open, Y stays the game's. With no target, on
+the HUD, Y is bound to the game's own key binding for the action (Toggle Quest
+Log, Open All Bags), so the window opens as the game's own and closes without
+an "Interface action failed".
 Settings in **Options > AddOns > Gamepad Defaults Key Modifier**, or `/gpdk`.
 
 ## License

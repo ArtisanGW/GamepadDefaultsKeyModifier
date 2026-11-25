@@ -4,7 +4,8 @@
 --
 -- Files, one job each:
 --   GamepadDefaultsKeyModifier.lua   saved settings, the settings page, events, /gpdk
---   FaceTopButton.lua                adds the chosen action to the game's own Y button
+--   FaceTopButton.lua                binds Y, with no target, to the game's own binding for the chosen action
+--   YButtonIcon.lua                  shows the chosen action's icon on Y in place of the game's magnifier
 local ADDON_NAME = ...
 
 local Modifier = {
@@ -58,6 +59,13 @@ function Modifier.RegisterSettings()
 
     local setting = Settings.RegisterAddOnSetting(category, "GamepadDefaultsKeyModifier_action", "action", settings,
         Settings.VarType.Number, "Y with no target", Modifier.DEFAULTS.action)
+    -- A change applies to the next press, no reload.
+    if setting.SetValueChangedCallback then
+        setting:SetValueChangedCallback(function()
+            Modifier.FaceTopButton.ApplyChosenAction()
+            Modifier.YButtonIcon.Refresh()
+        end)
+    end
     Settings.CreateSlider(category, setting, sliderOptions(),
         "What the controller's top face button (Y on Xbox) does when you have no target.\n\n"
         .. "• Off: nothing, as the game does\n"
@@ -78,14 +86,23 @@ end
 local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
-eventFrame:SetScript("OnEvent", function(_, event, name)
+eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+eventFrame:SetScript("OnEvent", function(_, event, loadedAddonName)
     if event == "ADDON_LOADED" then
-        if name ~= ADDON_NAME then return end
+        if loadedAddonName ~= ADDON_NAME then return end
         eventFrame:UnregisterEvent("ADDON_LOADED")
         Modifier.GetSettings()
         pcall(Modifier.RegisterSettings)
     elseif event == "PLAYER_LOGIN" then
+        -- A secure frame can't be made in combat (a reload mid-fight): after it, then.
+        if not InCombatLockdown() then
+            Modifier.FaceTopButton.Start()
+            Modifier.YButtonIcon.Start()
+        end
+    elseif event == "PLAYER_REGEN_ENABLED" then
         Modifier.FaceTopButton.Start()
+        Modifier.YButtonIcon.Start()
+        Modifier.FaceTopButton.ApplyAttributesAfterCombat()
     end
 end)
 
