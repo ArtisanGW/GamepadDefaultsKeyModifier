@@ -3,13 +3,14 @@
 -- The game shows a magnifier there (forever branch: MainActionBarFrame.lua:586-617,
 -- UpdateInspectIcon): "crosshair_inspect_32" with a target, "crosshair_unableinspect_32"
 -- without. While Y does the chosen action instead (FaceTopButton.lua: no target,
--- no window open, the targeting modifier up), this shows the action's icon on top
+-- no window open, the targeting modifier up, the top bar under the face buttons,
+-- out of combat), this shows the action's icon on top
 -- and fades the game's magnifier out; otherwise the game's own icon is back as it was.
 --
 -- A cosmetic layer only: the game's icon is never changed, only faded (its alpha,
 -- kept to put back). Its updates are followed with post-hooks on the texture the
 -- game sets (SetAtlas, SetTexture, SetColorTexture), and on the game's controller
--- key changes, so the game's own code and events run untouched.
+-- key changes and bar changes, so the game's own code and events run untouched.
 local Modifier = _G.GamepadDefaultsKeyModifier
 local FaceTopButton = Modifier.FaceTopButton
 
@@ -31,8 +32,8 @@ local actionIcon          -- our texture, on top of it, cut round as the game's 
 
 -- The game's icon on Y, or nil without the controller UI's bar.
 local function findGameIcon()
-    local bar = _G.GamepadMainActionBarFrame
-    local actionBars = type(bar) == "table" and bar.PageUnit and bar.PageUnit.actionBars
+    local pageUnit = FaceTopButton.GamePageUnit()
+    local actionBars = pageUnit and pageUnit.actionBars
     local button = actionBars and actionBars.topBar and actionBars.topBar.Right
         and actionBars.topBar.Right.ActionButton2
     if type(button) ~= "table" or (button.IsForbidden and button:IsForbidden()) then return nil end
@@ -65,11 +66,12 @@ local function roundMaskFor(button)
     return mask
 end
 
--- Y does the chosen action now: no target, no targeting modifier, no window open.
+-- Y does the chosen action now: no target, no targeting modifier, no window open,
+-- the top bar under the face buttons, out of combat (the [combat] of FaceTopButton.lua).
 local function yDoesTheAction()
-    if UnitExists("target") then return false end
+    if UnitExists("target") or UnitAffectingCombat("player") then return false end
     if GamepadMode and GamepadMode.IsTargetingModifierDown and GamepadMode.IsTargetingModifierDown() then return false end
-    return FaceTopButton.HudShown()
+    return FaceTopButton.HudShown() and FaceTopButton.TopBarActive()
 end
 
 function YButtonIcon.Refresh()
@@ -107,6 +109,10 @@ function YButtonIcon.Start()
                 hooksecurefunc(bindingManager, methodName, YButtonIcon.Refresh)
             end
         end
+    end
+    local pageUnit = FaceTopButton.GamePageUnit()
+    if pageUnit and type(pageUnit.SetActiveActionBar) == "function" then
+        hooksecurefunc(pageUnit, "SetActiveActionBar", YButtonIcon.Refresh)
     end
     YButtonIcon.Refresh()
 end

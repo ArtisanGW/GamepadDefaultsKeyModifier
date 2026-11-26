@@ -1,6 +1,6 @@
 -- GamepadDefaultsKeyModifier against a fake game: a secure frame whose attribute
--- snippet runs as plain Lua, the target state driver, the game's controller
--- binding manager, combat, and the Settings API.
+-- snippet runs as plain Lua, the target and combat state driver, the game's
+-- controller binding manager and bars, combat, and the Settings API.
 -- From GamepadDefaultsKeyModifier:  luajit tests/run.lua
 -- GDKM_TEST="part of a name" runs only the tests whose name holds it.
 local failed, passed = 0, 0
@@ -57,13 +57,19 @@ local function boot(options)
         if name then _G[name] = frame end
         return frame
     end
-    -- The state driver: secure code sets "state-target", in combat too.
-    _G.RegisterStateDriver = function(frame, state)
-        game.driven = { frame = frame, state = state }
+    -- The state driver ("[combat][@target,exists] game; free"): secure code sets
+    -- "state-ybutton", in combat too.
+    game.driveState = function()
+        if not game.driven then return end
         game.secureCall = true
-        frame:SetAttribute("state-" .. state, game.targetExists and "target" or "none")
+        game.driven.frame:SetAttribute("state-" .. game.driven.state, (game.inCombat or game.targetExists) and "game" or "free")
         game.secureCall = false
     end
+    _G.RegisterStateDriver = function(frame, state)
+        game.driven = { frame = frame, state = state }
+        game.driveState()
+    end
+    _G.UnitAffectingCombat = function(unit) return unit == "player" and game.inCombat end
     _G.hooksecurefunc = function(owner, methodName, hook)
         local original = owner[methodName]
         owner[methodName] = function(...) local results = { original(...) }; hook(...); return unpack(results) end
@@ -101,7 +107,13 @@ local function boot(options)
     function button:CreateTexture() game.actionIcon = newTexture(); return game.actionIcon end
     function button:CreateMaskTexture() return newTexture() end
     function button:IsForbidden() return false end
-    _G.GamepadMainActionBarFrame = { PageUnit = { actionBars = { topBar = { Right = { ActionButton2 = button } } } } }
+    -- Its bars: the one under the face buttons changes with LT and RT (PageUnit.lua).
+    game.topBar, game.leftBar = { Right = { ActionButton2 = button } }, {}
+    local pageUnit = { actionBars = { topBar = game.topBar, leftBar = game.leftBar }, activeBar = game.topBar }
+    function pageUnit:GetActiveBar() return self.activeBar end
+    function pageUnit:SetActiveActionBar(bar) self.activeBar = bar end
+    game.pageUnit = pageUnit
+    _G.GamepadMainActionBarFrame = { PageUnit = pageUnit }
     game.atlases = options.atlases or { crosshair_directions_32 = true, crosshair_lootall_32 = true }
     _G.C_Texture = { GetAtlasInfo = function(atlas) return game.atlases[atlas] and {} or nil end }
     _G.UnitExists = function(unit) return unit == "target" and game.targetExists end
@@ -136,9 +148,17 @@ end
 local function setTarget(exists)
     game.targetExists = exists
     game.gameIcon:SetAtlas(exists and "crosshair_inspect_32" or "crosshair_unableinspect_32")
-    game.secureCall = true
-    bindingFrame():SetAttribute("state-target", exists and "target" or "none")
-    game.secureCall = false
+    game.driveState()
+end
+-- A fight starts or ends: the state driver follows, then the game's event.
+local function setCombat(inCombat)
+    game.inCombat = inCombat
+    game.driveState()
+    game.fire(inCombat and "PLAYER_REGEN_DISABLED" or "PLAYER_REGEN_ENABLED")
+end
+-- The game puts another bar under the face buttons (LT or RT held), or the top one back.
+local function setActiveBar(bar)
+    game.pageUnit:SetActiveActionBar(bar)
 end
 -- A window opens (its keys go on the game's stack) or closes (they come off).
 local function setHud(active)
@@ -201,12 +221,40 @@ end)
 test("a window closing in combat: set again once combat ends", function()
     boot({ saved = { action = 1 } })
     setHud(false)
-    game.inCombat = true
+    setCombat(true)
     setHud(true)
     expectEqual(yBinding(), nil, "Y bound during combat")
-    game.inCombat = false
-    game.fire("PLAYER_REGEN_ENABLED")
+    setCombat(false)
     expectEqual(yBinding(), "TOGGLEQUESTLOG", "Y bound after combat")
+end)
+
+test("LT or RT held: Y is the game's, for the skill on that bar; the top bar back takes it again", function()
+    boot({ saved = { action = 1 } })
+    setActiveBar(game.leftBar)
+    expectEqual(yBinding(), nil, "Y bound on another bar")
+    setActiveBar(game.topBar)
+    expectEqual(yBinding(), "TOGGLEQUESTLOG", "Y bound on the top bar")
+end)
+
+test("in combat: Y is the game's on every bar, as addon code can't follow LT and RT then", function()
+    boot({ saved = { action = 1 } })
+    setCombat(true)
+    expectEqual(yBinding(), nil, "Y bound in combat")
+    setActiveBar(game.leftBar)
+    setActiveBar(game.topBar)
+    expectEqual(yBinding(), nil, "Y bound in combat after LT")
+    setCombat(false)
+    expectEqual(yBinding(), "TOGGLEQUESTLOG", "Y bound after combat")
+end)
+
+test("combat ending with LT held: Y stays the game's until the top bar is back", function()
+    boot({ saved = { action = 1 } })
+    setCombat(true)
+    setActiveBar(game.leftBar)
+    setCombat(false)
+    expectEqual(yBinding(), nil, "Y bound with LT held")
+    setActiveBar(game.topBar)
+    expectEqual(yBinding(), "TOGGLEQUESTLOG", "Y bound on the top bar")
 end)
 
 test("the setting changed in game applies at once, no reload", function()
@@ -267,6 +315,23 @@ test("icon: the targeting modifier (raid markers) shows the game's icon", functi
     game.modifierDown = true
     game.gameIcon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
     expectEqual(iconShown(), nil, "our icon")
+end)
+
+test("icon: LT or RT held shows the game's icon, the top bar back shows ours", function()
+    boot({ saved = { action = 1 } })
+    setActiveBar(game.leftBar)
+    expectEqual(iconShown(), nil, "our icon on another bar")
+    expectEqual(game.gameIcon.alpha, 1, "magnifier alpha")
+    setActiveBar(game.topBar)
+    expectEqual(iconShown(), "crosshair_directions_32", "our icon on the top bar")
+end)
+
+test("icon: in combat the game's icon, after it ours", function()
+    boot({ saved = { action = 1 } })
+    setCombat(true)
+    expectEqual(iconShown(), nil, "our icon in combat")
+    setCombat(false)
+    expectEqual(iconShown(), "crosshair_directions_32", "our icon after combat")
 end)
 
 test("icon: a window open shows the game's icon, closing it shows ours again", function()

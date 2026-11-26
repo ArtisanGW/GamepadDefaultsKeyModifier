@@ -71,7 +71,10 @@ function Modifier.RegisterSettings()
         .. "• Off: nothing, as the game does\n"
         .. "• Quests & Map: opens or closes the quest log and map\n"
         .. "• Bags: opens or closes your bags\n\n"
-        .. "With a target, Y still opens its menu.")
+        .. "Y stays the game's:\n"
+        .. "• with a target: opens its menu\n"
+        .. "• holding LT or RT, or in a vehicle: its skill\n"
+        .. "• in combat")
     Settings.RegisterAddOnCategory(category)
 end
 
@@ -87,6 +90,7 @@ local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
 eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
 eventFrame:SetScript("OnEvent", function(_, event, loadedAddonName)
     if event == "ADDON_LOADED" then
         if loadedAddonName ~= ADDON_NAME then return end
@@ -103,6 +107,10 @@ eventFrame:SetScript("OnEvent", function(_, event, loadedAddonName)
         Modifier.FaceTopButton.Start()
         Modifier.YButtonIcon.Start()
         Modifier.FaceTopButton.ApplyAttributesAfterCombat()
+        Modifier.YButtonIcon.Refresh()
+    elseif event == "PLAYER_REGEN_DISABLED" then
+        -- In combat Y is the game's (FaceTopButton.lua): its own icon is back.
+        Modifier.YButtonIcon.Refresh()
     end
 end)
 
