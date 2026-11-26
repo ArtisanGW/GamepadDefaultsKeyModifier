@@ -1,7 +1,17 @@
-**Summary:** With no target, the controller's Y button opens the quest log and map, or your bags, instead of doing nothing.  
-**Categories:** Quests & Leveling, Bags & Inventory
+# Summary
 
-# Gamepad Defaults Key Modifier
+With no target, the controller's Y button opens the quest log and map, or your bags, instead of doing nothing.
+
+# Categories
+
+- Quests & Leveling
+- Bags & Inventory
+
+# License
+
+All Rights Reserved
+
+# Description
 
 With the controller UI on, the top face button (Y on Xbox) opens your target's menu. With no target, it does nothing. Gamepad Defaults Key Modifier gives it something to do then.
 
