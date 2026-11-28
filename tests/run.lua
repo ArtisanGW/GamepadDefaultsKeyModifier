@@ -129,7 +129,7 @@ local function boot(options)
         CreateSlider = function() return {} end,
         RegisterAddOnCategory = function() end,
     }
-    for _, file in ipairs({ "GamepadDefaultsKeyModifier.lua", "FaceTopButton.lua", "YButtonIcon.lua" }) do
+    for _, file in ipairs({ "Code/GamepadDefaultsKeyModifier.lua", "Code/FaceTopButton.lua", "Code/YButtonIcon.lua" }) do
         assert(loadfile(file))("GamepadDefaultsKeyModifier")
     end
     game.fire = function(event, ...)

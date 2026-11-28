@@ -5,8 +5,8 @@
 ## Version: @project-version@
 ## SavedVariables: GamepadDefaultsKeyModifierDB
 ## Category: Gamepad
-## IconTexture: Interface\AddOns\GamepadDefaultsKeyModifier\Media\icon-64.png
+## IconTexture: Interface\AddOns\GamepadDefaultsKeyModifier\Code\Media\icon-64.png
 
-GamepadDefaultsKeyModifier.lua
-FaceTopButton.lua
-YButtonIcon.lua
+Code/GamepadDefaultsKeyModifier.lua
+Code/FaceTopButton.lua
+Code/YButtonIcon.lua
