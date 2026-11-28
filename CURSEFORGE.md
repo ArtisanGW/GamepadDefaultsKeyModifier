@@ -1,6 +1,6 @@
 # Summary
 
-With no target, the controller's Y button opens the quest log and map, or your bags, instead of doing nothing.
+No target, no wasted press: the controller's Y button opens your quest log and map, or your bags.
 
 # Categories
 
