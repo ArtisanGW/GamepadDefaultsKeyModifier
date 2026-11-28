@@ -9,7 +9,7 @@ With no target, the controller's Y button opens the quest log and map, or your b
 
 # License
 
-All Rights Reserved
+GNU General Public License version 3 (GPLv3)
 
 # Description
 

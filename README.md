@@ -23,4 +23,4 @@ Settings in **Options > AddOns > Gamepad Defaults Key Modifier**, or `/gpdk`.
 
 ## License
 
-Copyright (c) 2026 Artisan. All rights reserved.
+GNU General Public License version 3 (GPLv3): see LICENSE.
